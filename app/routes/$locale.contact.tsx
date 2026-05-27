@@ -5,6 +5,8 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import { useTranslation } from "react-i18next";
 import { useLocalePath } from "../hooks/useLocalePath";
+import { useSearchParams } from "@remix-run/react";
+import { realisations } from "../data/realisations";
 
 export function meta() {
   return [
@@ -27,6 +29,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
+  const productChoiceRaw = String(formData.get("product_choice") ?? "").trim();
 
   if (!name || !email || !message) {
     return json({ success: false, error: "Tous les champs sont requis." });
@@ -41,6 +44,20 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   try {
+    // Résoudre le choix produit en texte lisible
+    let productText = '';
+    if (productChoiceRaw) {
+      const [prodId, declId] = productChoiceRaw.split('::');
+      const product = realisations.find(p => p.id === prodId);
+      if (product) {
+        if (declId && declId !== '0') {
+          const decl = product.declinaisons.find(d => String(d.id) === declId);
+          productText = decl ? `${product.title} — ${decl.Description || `#${decl.id}`}` : product.title;
+        } else {
+          productText = product.title;
+        }
+      }
+    }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -52,7 +69,7 @@ export async function action({ request }: ActionFunctionArgs) {
         to: ["lespoulettes.benin@gmail.com"],
         reply_to: email,
         subject: `Message de contact — ${name}`,
-        text: `Nom : ${name}\nEmail : ${email}\n\n${message}`,
+        text: `Nom : ${name}\nEmail : ${email}\nProduit demandé : ${productText || '—'}\n\n${message}`,
       }),
     });
     if (!res.ok) throw new Error("Resend error");
@@ -76,6 +93,18 @@ export default function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [searchParams] = useSearchParams();
+
+  // Construire les options groupées par catégorie
+  const productsByCategory: Record<string, typeof realisations> = {};
+  for (const p of realisations) {
+    if (!productsByCategory[p.categorie || 'Autres']) productsByCategory[p.categorie || 'Autres'] = [];
+    productsByCategory[p.categorie || 'Autres'].push(p as any);
+  }
+
+  const initialProd = searchParams.get('product');
+  const initialDecl = searchParams.get('variant');
+  const [selectedChoice, setSelectedChoice] = useState(() => (initialProd ? `${initialProd}::${initialDecl ?? '0'}` : ''));
 
   return (
     <div
@@ -136,6 +165,38 @@ export default function Contact() {
                 required
                 className="form-field font-basecoat w-full rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm sm:text-base bg-white dark:bg-gray-900"
               />
+            </div>
+
+            <div>
+              <label htmlFor="product_choice" className="font-basecoat block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {t('contact.product_label')}
+              </label>
+              <select
+                id="product_choice"
+                name="product_choice"
+                value={selectedChoice}
+                onChange={(e) => setSelectedChoice(e.target.value)}
+                className="form-field font-basecoat w-full rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm sm:text-base bg-white dark:bg-gray-900"
+              >
+                <option value="">{t('contact.product_none')}</option>
+                {Object.keys(productsByCategory).map((cat) => (
+                  <optgroup key={cat} label={cat}>
+                    {productsByCategory[cat].map((p: any) => (
+                      p.declinaisons && p.declinaisons.length > 0
+                        ? p.declinaisons.map((d: any) => (
+                            <option key={`${p.id}::${d.id}`} value={`${p.id}::${d.id}`}>
+                              {`${p.title} — ${d.Description || `#${d.id}`}`}
+                            </option>
+                          ))
+                        : (
+                            <option key={`${p.id}::0`} value={`${p.id}::0`}>
+                              {p.title}
+                            </option>
+                          )
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
 
             <div>

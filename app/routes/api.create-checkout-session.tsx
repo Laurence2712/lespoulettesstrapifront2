@@ -4,10 +4,15 @@ import Stripe from 'stripe';
 
 export async function action({ request }: ActionFunctionArgs) {
   const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-  const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
+  const SITE_URL = process.env.SITE_URL || 'http://localhost:5173';
 
+  // Mode dev local — simule un paiement réussi quand Stripe n'est pas configuré
   if (!STRIPE_SECRET_KEY) {
-    return json({ error: 'Paiement en ligne non configuré.' }, { status: 500 });
+    let body: any;
+    try { body = await request.json(); } catch { body = {}; }
+    if (!body?.items?.length) return json({ error: 'Panier vide ou invalide.' }, { status: 400 });
+    const devSessionId = `dev_local_${Date.now()}`;
+    return json({ url: `${SITE_URL}/fr/paiement-reussi?session_id=${devSessionId}` });
   }
 
   let body: any;
@@ -23,7 +28,7 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({ error: 'Panier vide ou invalide.' }, { status: 400 });
   }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-03-31.basil' });
+  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
 
   const lineItems = items.map((item: any) => ({
     price_data: {

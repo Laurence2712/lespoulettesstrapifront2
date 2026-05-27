@@ -2,12 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLoaderData, useSearchParams } from '@remix-run/react';
 import { json } from '@remix-run/node';
 import type { LoaderFunctionArgs, MetaFunction } from '@remix-run/node';
-import { ShoppingCartIcon } from '@heroicons/react/24/outline';
+import { EnvelopeIcon } from '@heroicons/react/24/outline';
 import { getRealisationById, getRelatedRealisations } from '../data/realisations';
-import { useCartStore } from '../store/cartStore';
 import { useScrollAnimations } from '../hooks/useScrollAnimations';
 import { useToast } from '../components/ToastProvider';
-import CartDrawer from '../components/CartDrawer';
 import { useLocalePath } from '../hooks/useLocalePath';
 import { useTranslation } from 'react-i18next';
 
@@ -140,7 +138,6 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 export default function RealisationDetail() {
   const navigate = useNavigate();
-  const addToCart = useCartStore((state) => state.addToCart);
   const { realisation, relatedProducts, error } = useLoaderData<LoaderData>();
   const { showToast } = useToast();
   const lp = useLocalePath();
@@ -210,20 +207,14 @@ export default function RealisationDetail() {
     }
   };
 
-  const handleAddToCart = () => {
-    if (selectedDeclinaison && selectedDeclinaison.Stock > 0) {
-      addToCart({
-        id: `${realisation.id}-${selectedDeclinaison.id}`,
-        title: `${realisation.title}${selectedDeclinaison.Description ? ` — ${selectedDeclinaison.Description}` : ''}`,
-        prix: realisation.prix || 0,
-        quantity,
-        image_url: currentImage?.url || '',
-        categorieId: realisation.id,
-        declinaisonId: selectedDeclinaison.id,
-        stock: selectedDeclinaison.Stock,
-      });
-      showToast(`${realisation.title} ajouté au panier !`);
+  const handleContactOrder = () => {
+    const params = new URLSearchParams();
+    params.set('product', String(realisation.id));
+    if (selectedDeclinaisonId !== null) {
+      params.set('variant', String(selectedDeclinaisonId));
     }
+    params.set('quantity', String(quantity));
+    navigate(lp(`/contact?${params.toString()}`));
   };
 
   // JSON-LD données structurées produit (enrichi pour Google Shopping / SEO)
@@ -253,6 +244,7 @@ export default function RealisationDetail() {
       },
     },
   };
+
 
   return (
     <>
@@ -300,16 +292,13 @@ export default function RealisationDetail() {
                   alt={realisation.title}
                   width={800}
                   height={500}
-                  className="w-full h-[300px] sm:h-[380px] md:h-[440px] lg:h-[480px] object-contain rounded-xl transition-transform duration-500 group-hover:scale-[1.02]"
+                  className="w-full h-[300px] sm:h-[380px] md:h-[440px] lg:h-[480px] object-cover rounded-xl transition-transform duration-500 group-hover:scale-[1.02]"
                 />
               ) : (
-                <div className="w-full h-[300px] flex items-center justify-center text-gray-400 dark:text-gray-500 font-basecoat">
+                <div className="w-full h-[300px] sm:h-[380px] md:h-[440px] lg:h-[480px] flex items-center justify-center text-gray-400 dark:text-gray-500 font-basecoat">
                   {t('home.no_image')}
                 </div>
               )}
-              <div className="absolute top-4 left-4 bg-benin-jaune text-black dark:text-gray-100 text-xs font-basecoat font-bold uppercase px-3 py-1 rounded-full shadow">
-                ✂ {t('home.badge_handmade')}
-              </div>
               {currentImage?.url && (
                 <div className="absolute bottom-4 right-4 bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow">
                   <svg className="w-4 h-4 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,7 +338,7 @@ export default function RealisationDetail() {
                 <p className="text-xs font-basecoat font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-widest mb-2">
                   {t('products.other_views')}
                 </p>
-                <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-benin-ocre scrollbar-track-gray-100 dark:scrollbar-track-gray-800">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {realisation.mainImages.map((img, idx) => (
                     <button
                       key={idx}
@@ -357,7 +346,7 @@ export default function RealisationDetail() {
                         setMainImageIndex(idx);
                         setSelectedDeclinaisonId(null);
                       }}
-                      className={`relative rounded-xl overflow-hidden transition-all flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 ${
+                      className={`relative rounded-2xl overflow-hidden transition-all aspect-square ${
                         !selectedDeclinaisonId && mainImageIndex === idx
                           ? 'ring-2 ring-benin-jaune shadow-md scale-105'
                           : 'ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-benin-ocre opacity-60 hover:opacity-100 hover:scale-105'
@@ -369,10 +358,10 @@ export default function RealisationDetail() {
                         alt={`Vue ${idx + 1}`}
                         width={96}
                         height={96}
-                        className="w-full h-full object-contain bg-beige dark:bg-gray-900 rounded-lg"
+                        className="w-full h-full object-cover bg-beige dark:bg-gray-900"
                       />
                       {!selectedDeclinaisonId && mainImageIndex === idx && (
-                        <div className="absolute inset-0 bg-benin-jaune/10 rounded-xl pointer-events-none" />
+                        <div className="absolute inset-0 bg-benin-jaune/10 rounded-2xl pointer-events-none" />
                       )}
                     </button>
                   ))}
@@ -413,15 +402,6 @@ export default function RealisationDetail() {
               </div>
             )}
 
-            {/* Badge catégorie */}
-            {realisation.categorie && (
-              <div className="flex flex-wrap gap-2 mb-6">
-                <span className="inline-flex items-center gap-1.5 font-basecoat text-xs font-semibold bg-beige dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-benin-jaune/30 px-3 py-1.5 rounded-full">
-                  📦 {realisation.categorie}
-                </span>
-              </div>
-            )}
-
             {/* ── Sélection déclinaison ── */}
             {hasDeclinaisons && (
               <div className="mb-6">
@@ -453,7 +433,7 @@ export default function RealisationDetail() {
                             alt={decl.Description || 'Déclinaison'}
                             width={80}
                             height={80}
-                            className="w-full h-full object-contain bg-beige dark:bg-gray-900 rounded-lg"
+                            className="w-full h-full object-cover bg-beige dark:bg-gray-900 rounded-lg"
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
@@ -473,14 +453,45 @@ export default function RealisationDetail() {
                       </button>
                     );
                   })}
-                </div>
+                  </div>
 
-                {selectedDeclinaison?.Description && (
-                  <p className="mt-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    {t('products.variant_label')} :{' '}
-                    <span className="text-benin-jaune">{selectedDeclinaison.Description}</span>
-                  </p>
-                )}
+                  {/* Exposer toutes les déclinaisons : id + nom + stock (vitrine) */}
+                  <div className="mt-4">
+                    <p className="text-xs font-basecoat font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-widest mb-2">
+                      {t('products.variants_available')}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {realisation.declinaisons.map((decl) => (
+                        <button
+                          key={decl.id}
+                          onClick={() => handleSelectDeclinaison(decl)}
+                          type="button"
+                          className={`p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl flex items-center justify-between text-left hover:shadow-md transition ${
+                            selectedDeclinaisonId === decl.id ? 'ring-2 ring-benin-jaune' : ''
+                          } ${decl.Stock === 0 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                          disabled={decl.Stock === 0}
+                          aria-pressed={selectedDeclinaisonId === decl.id}
+                        >
+                          <div className="text-sm">
+                            <div className="font-semibold">{decl.Description || `#${decl.id}`}</div>
+                            <div className="text-xs text-gray-500">ID: {decl.id}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-sm font-semibold ${decl.Stock > 0 ? 'text-benin-vert' : 'text-benin-rouge'}`}>
+                              {decl.Stock > 0 ? `${decl.Stock} dispo` : t('products.out_of_stock')}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedDeclinaison?.Description && (
+                    <p className="mt-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {t('products.variant_label')} :{' '}
+                      <span className="text-benin-jaune">{selectedDeclinaison.Description}</span>
+                    </p>
+                  )}
               </div>
             )}
 
@@ -543,26 +554,14 @@ export default function RealisationDetail() {
             )}
 
 
-            {/* Bouton panier */}
-            {hasDeclinaisons && (
-              <div className="mt-auto pt-2" ref={ctaRef}>
-                <button
-                  onClick={handleAddToCart}
-                  disabled={!selectedDeclinaison || !isInStock}
-                  className={`w-full py-4 rounded-xl font-bold uppercase text-base tracking-wider transition-all duration-200 font-basecoat ${
-                    selectedDeclinaison && isInStock
-                      ? 'border-2 border-benin-jaune text-gray-900 dark:text-gray-100 hover:bg-benin-jaune hover:text-black dark:text-gray-100 hover:scale-[1.02] hover:shadow-lg'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  {!selectedDeclinaison
-                    ? t('products.choose_variant')
-                    : !isInStock
-                    ? t('products.out_of_stock')
-                    : <span className="inline-flex items-center gap-2"><ShoppingCartIcon className="w-5 h-5" />{t('products.add_to_cart')}</span>}
-                </button>
-              </div>
-            )}
+            <div className="mt-auto pt-2" ref={ctaRef}>
+              <button
+                onClick={handleContactOrder}
+                className={`w-full py-4 rounded-xl font-bold uppercase text-base tracking-wider transition-all duration-200 font-basecoat border-2 border-benin-jaune text-gray-900 dark:text-gray-100 hover:bg-benin-jaune hover:text-black dark:text-gray-100 hover:scale-[1.02] hover:shadow-lg`}
+              >
+                <span className="inline-flex items-center gap-2"><EnvelopeIcon className="w-5 h-5" />Commander via contact</span>
+              </button>
+            </div>
 
           </div>
         </div>
@@ -626,26 +625,15 @@ export default function RealisationDetail() {
               )}
             </div>
             <button
-              onClick={handleAddToCart}
-              disabled={!selectedDeclinaison || !isInStock}
-              className={`flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl font-basecoat font-bold uppercase tracking-wide text-sm transition-all duration-200 ${
-                selectedDeclinaison && isInStock
-                  ? 'bg-benin-jaune text-black dark:text-gray-100 hover:bg-benin-ocre hover:scale-105 shadow-md'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-              }`}
+              onClick={handleContactOrder}
+              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl font-basecoat font-bold uppercase tracking-wide text-sm transition-all duration-200 bg-benin-jaune text-black dark:text-gray-100 hover:bg-benin-ocre hover:scale-105 shadow-md"
             >
-              <ShoppingCartIcon className="w-4 h-4" />
-              {!selectedDeclinaison
-                ? 'Choisir'
-                : !isInStock
-                ? 'Épuisé'
-                : 'Ajouter'}
+              <span className="inline-flex items-center gap-2"><EnvelopeIcon className="w-4 h-4" />Commander via contact</span>
             </button>
           </div>
         </div>
       )}
 
-      <CartDrawer />
     </>
   );
 }

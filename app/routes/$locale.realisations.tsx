@@ -116,18 +116,31 @@ const CAT_KEY: Record<string, string> = {
 
 function matchesCategory(realisation: Realisation, category: string): boolean {
   if (category === 'Tout') return true;
-  // Si le champ Categorie est renseigné dans Strapi, on l'utilise directement
+  const categorySlug = category.toLowerCase();
   if (realisation.categorie) {
-    return realisation.categorie === category;
+    return realisation.categorie.toLowerCase() === categorySlug;
   }
-  // Fallback : matching sur le texte (tant que Strapi n'est pas encore rempli)
+
   const text = `${realisation.title} ${realisation.description}`.toLowerCase();
-  if (category === 'Sacs') return text.includes('tote') && !text.includes('porte-cl');
-  if (category === 'Accessoires') {
-    if (text.includes('porte-cl')) return true;
-    return !text.includes('trousse') && !text.includes('tote') && !text.includes('housse');
+  switch (category) {
+    case 'Trousses':
+      return text.includes('trousse') || text.includes('trousses');
+    case 'Sacs':
+      return text.includes('tote') || text.includes('bag') || text.includes('sac');
+    case 'Housses':
+      return text.includes('housse') || text.includes('sleeve');
+    case 'Accessoires':
+      return [
+        'porte-cl',
+        'porte-monnaie',
+        'chouchou',
+        'plumier',
+        'tablier',
+        'accessoire',
+      ].some((keyword) => text.includes(keyword));
+    default:
+      return text.includes(categorySlug.replace(/s$/, ''));
   }
-  return text.includes(category.toLowerCase().slice(0, -1));
 }
 
 export default function Realisations() {
@@ -174,8 +187,9 @@ export default function Realisations() {
   const filteredRealisations = realisations.filter((r) => matchesCategory(r, selectedCategory));
 
   const sortedRealisations = [...filteredRealisations].sort((a, b) => {
-    const prixA = typeof a.prix === 'string' ? parseFloat(a.prix) : (a.prix ?? 0);
-    const prixB = typeof b.prix === 'string' ? parseFloat(b.prix) : (b.prix ?? 0);
+    const prixA = Number(a.prix ?? 0);
+    const prixB = Number(b.prix ?? 0);
+    if (prixA === prixB) return 0;
     return sortOrder === 'asc' ? prixA - prixB : prixB - prixA;
   });
 

@@ -20,7 +20,6 @@ import CookieBanner from "./components/CookieBanner";
 import BackToTop from "./components/BackToTop";
 import { ToastProvider } from "./components/ToastProvider";
 import CommandPalette from "./components/CommandPalette";
-import { useCartStore } from "./store/cartStore";
 import i18next from "./i18n.server";
 import "./tailwind.css";
 
@@ -111,20 +110,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { gaId, recaptchaSiteKey, locale } = useLoaderData<typeof loader>();
-  const checkExpiration = useCartStore((state) => state.checkExpiration);
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
   const { t } = useTranslation();
 
   useChangeLanguage(locale);
-
-  useEffect(() => {
-    checkExpiration();
-    const interval = setInterval(() => {
-      checkExpiration();
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [checkExpiration]);
 
   useEffect(() => {
     if (!recaptchaSiteKey || typeof window === "undefined") return;
